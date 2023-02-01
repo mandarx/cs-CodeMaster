@@ -1,0 +1,1 @@
+FizzBuzzDelegate.Entry.Main(args);
