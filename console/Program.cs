@@ -1,0 +1,1 @@
+FizzBuzzLambdaHoisting.Entry.Main(args);
