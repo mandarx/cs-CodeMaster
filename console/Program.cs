@@ -1,1 +1,1 @@
-FizzBuzzLambdaHoisting.Entry.Main(args);
+GenericsMethodsWithLinq.Entry.Main(args);
