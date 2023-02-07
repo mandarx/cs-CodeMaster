@@ -1,1 +1,1 @@
-GenericsMethodsWithLinq.Entry.Main(args);
+LinqAggregateFunction.Entry.Main(args);
