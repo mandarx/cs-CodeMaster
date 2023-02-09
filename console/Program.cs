@@ -1,1 +1,1 @@
-LinqAggregateFunction.Entry.Main(args);
+AnonymousTypes.Entry.Main(args);
