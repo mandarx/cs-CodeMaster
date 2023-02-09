@@ -74,8 +74,22 @@ class Entry
 
         // Also see MyIntersect, MyExcept and MyToDictionary in LinqWithExtensionMethods
 
+        // Sample MyToDictionary
+        var people = new [] {new Person("Nelson", "LaQuet")};
+        var peopleByFirstName = people.MyToDictionary(k => k.FirstName, v => v);
 
 
     }
 
+}
+
+class Person {
+    public string FirstName {get; set;}
+    public string LastName {get; set;}
+    public int Age {get; set;}
+
+    public Person(string firstName, string lastName) {
+        FirstName = firstName;
+        LastName = lastName;
+    }
 }

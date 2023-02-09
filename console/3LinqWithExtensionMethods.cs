@@ -1,4 +1,5 @@
 namespace LinqWithExtensionMethods;
+using System.Collections;
 
 /**
  *   Requirements for Extension Methods
@@ -124,47 +125,144 @@ static class MyLinq
     // The advantage of deferred execution is that it yields back and allows the caller to time out, especially in case of infinite enumerables.
     public static IEnumerable<T> MyConcat<T>(this IEnumerable<T> that, IEnumerable<T> rhs)
     {
-        foreach(var item in that)
+        foreach (var item in that)
             yield return item;
-        foreach(var item in rhs)
+        foreach (var item in rhs)
             yield return item;
     }
 
     // Remember, typically Unions require only two Enumerables.
     // Chaining multiple Union operations usning the below implementation is not advisable.
     // Chaining requires a more optimised code, which is less readable and requires more maintenance. 
-    public static IEnumerable<T> MyUnion<T>(this IEnumerable<T> that, IEnumerable<T> rhs) {
+    public static IEnumerable<T> MyUnion<T>(this IEnumerable<T> that, IEnumerable<T> rhs)
+    {
         return MyUnionWithEqualityComparer(that, rhs, EqualityComparer<T>.Default);
     }
 
-    public static IEnumerable<T> MyUnionWithEqualityComparer<T>(this IEnumerable<T> that, IEnumerable<T> rhs, IEqualityComparer<T> comparer) {
+    public static IEnumerable<T> MyUnionWithEqualityComparer<T>(this IEnumerable<T> that, IEnumerable<T> rhs, IEqualityComparer<T> comparer)
+    {
         var set = new HashSet<T>(comparer);
-        foreach(var item in that)
+        foreach (var item in that)
             if (set.Add(item))
                 yield return item;
-        foreach(var item in rhs)
+        foreach (var item in rhs)
             if (set.Add(item))
                 yield return item;
     }
 
-    public static IEnumerable<T> MyExcept<T>(this IEnumerable<T> that, IEnumerable<T> rhs) {
+    public static IEnumerable<T> MyExcept<T>(this IEnumerable<T> that, IEnumerable<T> rhs)
+    {
         var exclusionSet = new HashSet<T>(rhs);
-        foreach(var item in that)
+        foreach (var item in that)
             if (exclusionSet.Add(item))
                 yield return item;
     }
 
-    public static IEnumerable<T> MyIntersect<T>(this IEnumerable<T> that, IEnumerable<T> rhs) {
+    public static IEnumerable<T> MyIntersect<T>(this IEnumerable<T> that, IEnumerable<T> rhs)
+    {
         var inclusionSet = new HashSet<T>(rhs);
-        foreach(var item in that)
+        foreach (var item in that)
             if (inclusionSet.Remove(item))
                 yield return item;
     }
 
-    // TODO
-    // Look at Link ToDictionary methods.
-    public static IDictionary<TKey, TValue> MyToDictionary<TSource, TKey, TValue>(this IEnumerable<TSource> that, Func<TSource, TKey> keyProjection, Func<TSource, TValue> valueProjection) {
+    // Look at Linq ToDictionary methods.
+    // Note: Parameter checking is usually not done during deferred execution.
+    public static IDictionary<TKey, TValue> MyToDictionary<TSource, TKey, TValue>(this IEnumerable<TSource> that, Func<TSource, TKey> keySelector, Func<TSource, TValue> valueSelector)
+    {
+        var dictionary = new Dictionary<TKey, TValue>();
+        foreach (var item in that)
+            dictionary.Add(keySelector(item), valueSelector(item));
+
+        return dictionary;
+    }
+
+    [Obsolete("Since we have a non-Generic interface IEnumerable, we can skip TSource", true)]
+    public static IEnumerable<TResult> MyCast<TSource, TResult>(this IEnumerable<TSource> that)
+    {
         return null;
+    }
+
+    public static IEnumerable<TResult> MyCast<TResult>(this IEnumerable that)
+    {
+        foreach (var item in that)
+            yield return (TResult)item;
+    }
+
+    public static IEnumerable<TResult> MyOfType<TResult>(this IEnumerable that)
+    {
+        foreach (var item in that)
+            if (item is TResult)
+                yield return (TResult)item;
+    }
+
+    public static IEnumerable<TResult> MyJoin<TResult, TOuter, TInner, TKey>(
+        this IEnumerable<TOuter> that,
+        IEnumerable<TInner> inner,
+        Func<TOuter, TKey> outerKeySelector,
+        Func<TInner, TKey> innerKeySelector,
+        Func<TOuter, TInner, TResult> projection,
+        IEqualityComparer<TKey> comparer
+    )
+    {
+        foreach (var outerElement in that)
+        {
+            var outerKey = outerKeySelector(outerElement);
+            foreach (var innerElement in inner)
+            {
+                var innerkey = innerKeySelector(innerElement);
+                if (comparer.Equals(outerKey, innerkey))
+                    yield return projection(outerElement, innerElement);
+            }
+        }
+    }
+
+    [Obsolete("Method not fully tested", true)]
+    public static bool MySequenceEqual<TSource>(this IEnumerable<TSource> that, IEnumerable<TSource> second)
+        where TSource : class
+    {
+        return MySequenceEqual(that, second, EqualityComparer<TSource>.Default);
+    }
+    [Obsolete("Method not fully tested", true)]
+    public static bool MySequenceEqual<TSource>(this IEnumerable<TSource> that, IEnumerable<TSource> second, EqualityComparer<TSource> comparer)
+        where TSource : class
+    {
+
+        // We could have used nested foreach. But the "using" will allow us to iterate over both sequences together.
+        using (var thatEnumerator = that.GetEnumerator())
+        {
+            using (var secondEnumerator = second.GetEnumerator())
+            {
+                while (true)
+                {
+                    var thatHasMoreItems = thatEnumerator.MoveNext();
+                    var secondHasMoreItems = secondEnumerator.MoveNext();
+                    if (!thatHasMoreItems && !secondHasMoreItems)
+                        return true;
+
+                    // When "that" and "second" have different number of elements, it is a discrepancy. 
+                    // Two sequences cannot be equal, when they have different number of elements.
+                    if (thatHasMoreItems != secondHasMoreItems)
+                        return false;
+
+                    // When n'th element of "that" does not match with n'th element of "second", the sequences do not match.
+                    // Why not just use if (!thatEnumerator.Current != secondEnumerator.Current) ?
+                    // It is because since in this case it is comparison of references and not the actual values within them, we cannot use reference comparison.
+                    // We are looking for equality of the values in the objects.
+                    if (!comparer.Equals(thatEnumerator.Current, secondEnumerator.Current))
+                        return false;
+
+                }
+            }
+        }
+    }
+
+    public static IEnumerable<TResult> MyZip<TSource, TSecond, TResult>(this IEnumerable<TSource> that, IEnumerable<TSecond> second, Func<TSource, TSecond, TResult> projection)
+    {
+        using(var thatEnumerator = that.GetEnumerator())
+        using(var secondEnumerator = second.GetEnumerator())
+            while(thatEnumerator.MoveNext() && secondEnumerator.MoveNext())
+                yield return projection(thatEnumerator.Current, secondEnumerator.Current);
     }
 
 }
