@@ -1,1 +1,2 @@
-AnonymousTypes.Entry.Main(args);
+
+Indexers.Entry.Main(args);
